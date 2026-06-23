@@ -73,6 +73,7 @@ describe("<RoomSummaryCard />", () => {
         pinCount: 0,
         searchInputRef: { current: null },
         onUpdateSearchInput: vi.fn(),
+        onSearchFocus: vi.fn(),
         onRoomMembersClick: vi.fn(),
         onRoomThreadsClick: vi.fn(),
         onRoomFilesClick: vi.fn(),
