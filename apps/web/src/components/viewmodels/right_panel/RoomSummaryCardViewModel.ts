@@ -30,6 +30,7 @@ import { DefaultTagID } from "../../../stores/room-list-v3/skip-list/tag";
 import { useEventEmitterState } from "../../../hooks/useEventEmitter";
 import RightPanelStore from "../../../stores/right-panel/RightPanelStore";
 import { RightPanelPhases } from "../../../stores/right-panel/RightPanelStorePhases";
+import EventIndexPeg from "../../../indexing/EventIndexPeg";
 import PosthogTrackers from "../../../PosthogTrackers";
 import { PollHistoryDialog } from "../../views/dialogs/PollHistoryDialog";
 import Modal from "../../../Modal";
@@ -94,6 +95,12 @@ export interface RoomSummaryCardState {
      */
     onUpdateSearchInput: (e: React.KeyboardEvent<HTMLInputElement>) => void;
     /**
+     * The callback when the search input gains focus. Used to flush any pending
+     * event-index commits up front, so the index is fresh by the time the user
+     * finishes typing their query.
+     */
+    onSearchFocus: () => void;
+    /**
      * Callbacks to all the actions button in the right panel
      */
     onRoomMembersClick: () => void;
@@ -142,6 +149,7 @@ const useSearchInput = (
 ): {
     searchInputRef: React.RefObject<HTMLInputElement | null>;
     onUpdateSearchInput: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+    onSearchFocus: () => void;
 } => {
     const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -150,6 +158,15 @@ const useSearchInput = (
             searchInputRef.current.value = "";
             onSearchCancel?.();
         }
+    };
+
+    // Flush any events background indexing has buffered but not yet committed, so
+    // the local search index is up to date by the time the user runs their query.
+    // Doing it on focus overlaps the commit with them typing; it's a no-op when
+    // there's nothing pending. No-ops harmlessly when there's no event index (e.g.
+    // web/non-desktop).
+    const onSearchFocus = (): void => {
+        void EventIndexPeg.get()?.prepareForSearch();
     };
 
     // Focus the search field when the user clicks on the search button component
@@ -162,6 +179,7 @@ const useSearchInput = (
     return {
         searchInputRef,
         onUpdateSearchInput,
+        onSearchFocus,
     };
 };
 
@@ -267,7 +285,7 @@ export function useRoomSummaryCardViewModel(
     };
 
     // Room Search element ref
-    const { searchInputRef, onUpdateSearchInput } = useSearchInput(onSearchCancel);
+    const { searchInputRef, onUpdateSearchInput, onSearchFocus } = useSearchInput(onSearchCancel);
 
     return {
         isDirectMessage,
@@ -294,6 +312,7 @@ export function useRoomSummaryCardViewModel(
         onRoomPollHistoryClick,
         onReportRoomClick,
         onUpdateSearchInput,
+        onSearchFocus,
         onFavoriteToggleClick,
         onInviteToRoomClick,
     };
