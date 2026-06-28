@@ -26,6 +26,7 @@ import {
     ClientEvent,
     SyncState,
 } from "matrix-js-sdk/src/matrix";
+import { KnownMembership } from "matrix-js-sdk/src/types";
 import { emitPromise, getMockClientWithEventEmitter, mockClientMethodsRooms, mockPlatformPeg } from "test-utils";
 
 import EventIndex from "./EventIndex.ts";
@@ -102,12 +103,14 @@ describe("EventIndex", () => {
 
         const room1 = {
             roomId: "!room1:id",
+            getMyMembership: () => KnownMembership.Join,
             getLiveTimeline: () => ({
                 getPaginationToken: () => "token1",
             }),
         } as any as Room;
         const room2 = {
             roomId: "!room2:id",
+            getMyMembership: () => KnownMembership.Join,
             getLiveTimeline: () => ({
                 getPaginationToken: () => "token2",
             }),
