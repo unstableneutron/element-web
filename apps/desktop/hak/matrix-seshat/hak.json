@@ -1,6 +1,7 @@
 {
     "scripts": {
         "check": "check.ts",
+        "fetch": "fetch.ts",
         "build": "build.ts"
     },
     "copy": "index.node"
