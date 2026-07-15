@@ -220,7 +220,7 @@ class Store extends ElectronStore<StoreData> {
                 },
                 spellCheckerEnabled: {
                     type: "boolean",
-                    default: true,
+                    default: false,
                 },
                 autoHideMenuBar: {
                     type: "boolean",
