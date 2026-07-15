@@ -10,11 +10,11 @@ import { useCallback, useContext } from "react";
 import { mediaFromMxc } from "../../../../customisations/Media";
 import Modal from "../../../../Modal";
 import ImageView from "../../../views/elements/ImageView";
-import SdkConfig from "../../../../SdkConfig";
 import MatrixClientContext from "../../../../contexts/MatrixClientContext";
 import { type Member } from "../../../views/right_panel/UserInfo";
 import { useUserTimezone } from "../../../../hooks/useUserTimezone";
 import UserIdentifierCustomisations from "../../../../customisations/UserIdentifier";
+import { isPresenceEnabled } from "../../../../utils/presence";
 
 export interface PresenceInfo {
     lastActiveAgo: number | undefined;
@@ -62,15 +62,13 @@ interface UserInfoHeaderViewModelProps {
 export function useUserfoHeaderViewModel({ member, roomId }: UserInfoHeaderViewModelProps): UserInfoHeaderState {
     const cli = useContext(MatrixClientContext);
 
-    let showPresence = true;
+    const showPresence = isPresenceEnabled(cli);
 
     const precenseInfo: PresenceInfo = {
         lastActiveAgo: undefined,
         currentlyActive: undefined,
         state: undefined,
     };
-
-    const enablePresenceByHsUrl = SdkConfig.get("enable_presence_by_hs_url");
 
     const timezoneInfo = useUserTimezone(cli, member.userId);
 
@@ -99,10 +97,6 @@ export function useUserfoHeaderViewModel({ member, roomId }: UserInfoHeaderViewM
         precenseInfo.state = member.user.presence;
         precenseInfo.lastActiveAgo = member.user.lastActiveAgo;
         precenseInfo.currentlyActive = member.user.currentlyActive;
-    }
-
-    if (enablePresenceByHsUrl && enablePresenceByHsUrl[cli.baseUrl] !== undefined) {
-        showPresence = enablePresenceByHsUrl[cli.baseUrl];
     }
 
     return {
