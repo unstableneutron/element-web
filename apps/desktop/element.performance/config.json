@@ -1,0 +1,36 @@
+{
+    "brand": "Element Performance",
+    "show_labs_settings": false,
+    "integrations_ui_url": null,
+    "integrations_rest_url": null,
+    "integrations_widgets_urls": null,
+    "enable_presence_by_hs_url": {
+        "*": false
+    },
+    "element_call": {
+        "disable": true,
+        "use_exclusively": false
+    },
+    "setting_defaults": {
+        "UIFeature.feedback": false,
+        "UIFeature.identityServer": false,
+        "UIFeature.locationSharing": false,
+        "UIFeature.shareSocial": false,
+        "UIFeature.thirdPartyId": false,
+        "UIFeature.urlPreviews": false,
+        "UIFeature.voip": false,
+        "UIFeature.widgets": false,
+        "MessageComposerInput.showPollsButton": false,
+        "MessageComposerInput.showStickersButton": false,
+        "MessageComposerInput.suggestEmoji": false,
+        "breadcrumbs": false,
+        "enableLegacyCallsVoip": false,
+        "sendTypingNotifications": false,
+        "showTypingNotifications": false,
+        "urlPreviewsEnabled": false
+    },
+    "features": {
+        "feature_element_call_video_rooms": false,
+        "feature_video_rooms": false
+    }
+}
