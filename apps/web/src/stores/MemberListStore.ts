@@ -11,7 +11,7 @@ import { KnownMembership } from "matrix-js-sdk/src/types";
 
 import SettingsStore from "../settings/SettingsStore";
 import { type SDKContextClass } from "../contexts/SDKContextClass";
-import SdkConfig from "../SdkConfig";
+import { isPresenceEnabled } from "../utils/presence";
 
 // Regex applied to filter our punctuation in member names before applying sort, to fuzzy it a little
 // matches all ASCII punctuation: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
@@ -144,8 +144,7 @@ export class MemberListStore {
         if (!this.stores.client) {
             return true;
         }
-        const enablePresenceByHsUrl = SdkConfig.get("enable_presence_by_hs_url");
-        return enablePresenceByHsUrl?.[this.stores.client!.baseUrl] ?? true;
+        return isPresenceEnabled(this.stores.client);
     }
 
     /**
