@@ -296,7 +296,7 @@ app.on("ready", async () => {
 
     // Handle spellchecker
     // For some reason spellCheckerEnabled isn't persisted, so we have to use the store here
-    global.mainWindow.webContents.session.setSpellCheckerEnabled(store.get("spellCheckerEnabled", true));
+    global.mainWindow.webContents.session.setSpellCheckerEnabled(store.get("spellCheckerEnabled", false));
 
     // Create trayIcon icon
     if (store.get("minimizeToTray")) await tray.create();
