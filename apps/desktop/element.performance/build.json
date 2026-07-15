@@ -1,7 +1,7 @@
 {
-    "appId": "com.unstableneutron.element-performance",
-    "name": "element-performance",
-    "productName": "Element Performance",
+    "appId": "com.unstableneutron.elementplus",
+    "name": "elementplus",
+    "productName": "ElementPlus",
     "description": "Element optimized for Apple Silicon and text-first Matrix use",
-    "protocols": ["io.element.performance", "element-performance"]
+    "protocols": ["io.elementplus.desktop", "elementplus"]
 }
