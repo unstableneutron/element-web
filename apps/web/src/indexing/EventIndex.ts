@@ -141,6 +141,14 @@ export default class EventIndex extends EventEmitter {
      */
     private readonly fullyCrawledRooms = new Set<string>();
 
+    /**
+     * Exact checkpoints currently being persisted. Timeline reset events can be
+     * re-emitted nearly simultaneously for the same gap, so checking only the
+     * in-memory crawl queue leaves a race while the first database write is in
+     * flight.
+     */
+    private readonly pendingCrawlerCheckpoints = new Set<string>();
+
     private readonly logger;
 
     public constructor() {
@@ -514,7 +522,7 @@ export default class EventIndex extends EventEmitter {
 
         this.logger.debug("Adding a checkpoint because of a limited timeline", room.roomId);
 
-        this.addRoomCheckpoint(room.roomId, false);
+        await this.addRoomCheckpoint(room.roomId, false);
     };
 
     /**
@@ -680,13 +688,21 @@ export default class EventIndex extends EventEmitter {
 
         this.logger.debug("Adding checkpoint", JSON.stringify(checkpoint));
 
+        const checkpointKey = this.checkpointKey(checkpoint);
+        this.pendingCrawlerCheckpoints.add(checkpointKey);
         try {
             await indexManager.addCrawlerCheckpoint(checkpoint);
         } catch (e) {
             this.logger.warn(`Error adding new checkpoint for room ${room.roomId}`, e);
+        } finally {
+            this.pendingCrawlerCheckpoints.delete(checkpointKey);
         }
 
         this.crawlerCheckpoints.push(checkpoint);
+    }
+
+    private checkpointKey(cp: ICrawlerCheckpoint): string {
+        return [cp.roomId, cp.token, cp.direction, Boolean(cp.fullCrawl)].join("\u0000");
     }
 
     /**
@@ -695,6 +711,8 @@ export default class EventIndex extends EventEmitter {
      * token, direction and fullCrawl flag.
      */
     private hasQueuedCheckpoint(cp: ICrawlerCheckpoint): boolean {
+        if (this.pendingCrawlerCheckpoints.has(this.checkpointKey(cp))) return true;
+
         const matches = (c: ICrawlerCheckpoint): boolean =>
             c.roomId === cp.roomId &&
             c.token === cp.token &&

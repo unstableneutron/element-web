@@ -23,6 +23,7 @@ import { inviteToRoom } from "../../../../../src/utils/room/inviteToRoom";
 import DMRoomMap from "../../../../../src/utils/DMRoomMap";
 import * as hooks from "../../../../../src/hooks/useAccountData";
 import * as getTagsForRoomUtils from "../../../../../src/utils/room/getTagsForRoom";
+import EventIndexPeg from "../../../../../src/indexing/EventIndexPeg";
 
 jest.mock("../../../../../src/utils/room/inviteToRoom", () => ({
     inviteToRoom: jest.fn(),
@@ -47,6 +48,7 @@ describe("useRoomSummaryCardViewModel", () => {
     });
 
     afterEach(() => {
+        EventIndexPeg.index = null;
         jest.resetAllMocks();
     });
 
@@ -240,6 +242,17 @@ describe("useRoomSummaryCardViewModel", () => {
     });
 
     describe("search input", () => {
+        it("flushes pending indexed events when search gains focus", () => {
+            const prepareForSearch = jest.fn().mockResolvedValue(undefined);
+            EventIndexPeg.index = { prepareForSearch } as any;
+            jest.spyOn(hooks, "useAccountData").mockReturnValue({});
+            const { result } = render();
+
+            result.current.onSearchFocus();
+
+            expect(prepareForSearch).toHaveBeenCalledTimes(1);
+        });
+
         it("should handle search input escape key", () => {
             const directRoomsList = {};
             jest.spyOn(hooks, "useAccountData").mockReturnValue(directRoomsList);
