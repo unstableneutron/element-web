@@ -218,6 +218,20 @@
                 "call_declined": "来电被拒接",
                 "call_declined_by_us": "你已拒接来电"
             },
+            "ongoing": {
+                "common": {
+                    "call_started_by": "%(startedByDisplayName)s 已开始通话",
+                    "join_button": "加入"
+                },
+                "dm": {
+                    "call_started": "通话已开始",
+                    "title": "通话进行中"
+                },
+                "room": {
+                    "join_count": "%(joinedCount)s 人已加入",
+                    "title": "群组通话进行中"
+                }
+            },
             "tombstone": {
                 "room": {
                     "title": "群组通话已结束"
