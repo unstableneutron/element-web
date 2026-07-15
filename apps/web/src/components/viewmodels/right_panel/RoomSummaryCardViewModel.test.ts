@@ -26,6 +26,7 @@ import { inviteToRoom } from "../../../utils/room/inviteToRoom";
 import DMRoomMap from "../../../utils/DMRoomMap";
 import * as hooks from "../../../hooks/useAccountData";
 import * as getTagsForRoomUtils from "../../../utils/room/getTagsForRoom";
+import EventIndexPeg from "../../../indexing/EventIndexPeg";
 
 vi.mock("../../../utils/room/inviteToRoom", () => ({
     inviteToRoom: vi.fn(),
@@ -50,6 +51,7 @@ describe("useRoomSummaryCardViewModel", () => {
     });
 
     afterEach(() => {
+        EventIndexPeg.index = null;
         vi.resetAllMocks();
     });
 
@@ -246,6 +248,17 @@ describe("useRoomSummaryCardViewModel", () => {
     });
 
     describe("search input", () => {
+        it("flushes pending indexed events when search gains focus", () => {
+            const prepareForSearch = vi.fn().mockResolvedValue(undefined);
+            EventIndexPeg.index = { prepareForSearch } as any;
+            vi.spyOn(hooks, "useAccountData").mockReturnValue({});
+            const { result } = render();
+
+            result.current.onSearchFocus();
+
+            expect(prepareForSearch).toHaveBeenCalledTimes(1);
+        });
+
         it("should handle search input escape key", () => {
             const directRoomsList = {};
             vi.spyOn(hooks, "useAccountData").mockReturnValue(directRoomsList);

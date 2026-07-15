@@ -172,6 +172,196 @@ describe("EventIndex", () => {
         });
     });
 
+    it("reconciles joined encrypted rooms missed by initial checkpointing", async () => {
+        const mockIndexingManager = {
+            loadCheckpoints: vi.fn().mockResolvedValue([]),
+            isEventIndexEmpty: vi.fn().mockResolvedValue(false),
+            isRoomIndexed: vi.fn().mockResolvedValue(false),
+            addCrawlerCheckpoint: vi.fn().mockResolvedValue(undefined),
+        } as any as Mocked<BaseEventIndexManager>;
+        mockPlatformPeg({ getEventIndexingManager: () => mockIndexingManager });
+
+        const room = {
+            roomId: "!missed:id",
+            getMyMembership: () => KnownMembership.Join,
+            getLiveTimeline: () => ({
+                getPaginationToken: () => "missed-token",
+            }),
+        } as any as Room;
+        const mockCrypto = {
+            isEncryptionEnabledInRoom: vi.fn().mockResolvedValue(true),
+        };
+        getMockClientWithEventEmitter({
+            getCrypto: () => mockCrypto as any,
+            ...mockClientMethodsRooms([room]),
+            isRoomEncrypted: vi.fn().mockReturnValue(true),
+        });
+
+        const indexer = new EventIndex();
+        await indexer.init();
+        await indexer.reconcileMissedRooms();
+
+        expect(mockIndexingManager.isRoomIndexed).toHaveBeenCalledWith(room.roomId);
+        expect(mockIndexingManager.addCrawlerCheckpoint).toHaveBeenCalledOnce();
+        expect(mockIndexingManager.addCrawlerCheckpoint).toHaveBeenCalledWith({
+            roomId: room.roomId,
+            token: "missed-token",
+            direction: Direction.Backward,
+            fullCrawl: true,
+        });
+    });
+
+    it("does not reconcile rooms carrying a persisted fully-crawled marker", async () => {
+        const mockIndexingManager = {
+            loadCheckpoints: vi.fn().mockResolvedValue([
+                {
+                    roomId: "!complete:id",
+                    token: "fully_crawled",
+                    direction: Direction.Backward,
+                    fullCrawl: true,
+                },
+            ]),
+            isEventIndexEmpty: vi.fn().mockResolvedValue(false),
+            isRoomIndexed: vi.fn().mockResolvedValue(false),
+            addCrawlerCheckpoint: vi.fn().mockResolvedValue(undefined),
+        } as any as Mocked<BaseEventIndexManager>;
+        mockPlatformPeg({ getEventIndexingManager: () => mockIndexingManager });
+
+        const room = {
+            roomId: "!complete:id",
+            getMyMembership: () => KnownMembership.Join,
+            getLiveTimeline: () => ({
+                getPaginationToken: () => "old-token",
+            }),
+        } as any as Room;
+        const mockCrypto = {
+            isEncryptionEnabledInRoom: vi.fn().mockResolvedValue(true),
+        };
+        getMockClientWithEventEmitter({
+            getCrypto: () => mockCrypto as any,
+            ...mockClientMethodsRooms([room]),
+            isRoomEncrypted: vi.fn().mockReturnValue(true),
+        });
+
+        const indexer = new EventIndex();
+        await indexer.init();
+        await indexer.reconcileMissedRooms();
+
+        expect(mockIndexingManager.isRoomIndexed).not.toHaveBeenCalled();
+        expect(mockIndexingManager.addCrawlerCheckpoint).not.toHaveBeenCalled();
+    });
+
+    it("persists a fully-crawled marker after reaching the start of room history", async () => {
+        const checkpoint: ICrawlerCheckpoint = {
+            roomId: "!complete:id",
+            token: "old-token",
+            direction: Direction.Backward,
+            fullCrawl: true,
+        };
+        const markerPersisted = Promise.withResolvers<void>();
+        const mockIndexingManager = {
+            loadCheckpoints: vi.fn().mockResolvedValue([checkpoint]),
+            isEventIndexEmpty: vi.fn().mockResolvedValue(false),
+            addHistoricEvents: vi.fn().mockImplementation(async () => {
+                markerPersisted.resolve();
+            }),
+        } as any as Mocked<BaseEventIndexManager>;
+        mockPlatformPeg({ getEventIndexingManager: () => mockIndexingManager });
+
+        const room = { roomId: checkpoint.roomId } as Room;
+        const mockClient = getMockClientWithEventEmitter({
+            getEventMapper: () => (obj: Partial<IEvent>) => new MatrixEvent(obj),
+            createMessagesRequest: vi.fn().mockResolvedValue({ chunk: [] }),
+            ...mockClientMethodsRooms([room]),
+        });
+        vi.spyOn(SettingsStore, "getValueAt").mockReturnValue(0);
+
+        const indexer = new EventIndex();
+        await indexer.init();
+        indexer.startCrawler();
+        await markerPersisted.promise;
+        indexer.stopCrawler();
+
+        expect(mockClient.createMessagesRequest).toHaveBeenCalledWith(
+            checkpoint.roomId,
+            checkpoint.token,
+            100,
+            Direction.Backward,
+        );
+        expect(mockIndexingManager.addHistoricEvents).toHaveBeenCalledWith(
+            [],
+            {
+                roomId: checkpoint.roomId,
+                token: "fully_crawled",
+                direction: Direction.Backward,
+                fullCrawl: true,
+            },
+            checkpoint,
+        );
+    });
+
+    it("flushes pending live events before searching", async () => {
+        const calls: string[] = [];
+        const mockIndexingManager = {
+            commitLiveEvents: vi.fn().mockImplementation(async () => {
+                calls.push("commit");
+            }),
+            searchEventIndex: vi.fn().mockImplementation(async () => {
+                calls.push("search");
+                return { results: [], highlights: [] };
+            }),
+        } as any as Mocked<BaseEventIndexManager>;
+        mockPlatformPeg({ getEventIndexingManager: () => mockIndexingManager });
+
+        const indexer = new EventIndex();
+        await indexer.search({ searchTerm: "needle" } as any);
+
+        expect(calls).toEqual(["commit", "search"]);
+    });
+
+    it("deduplicates identical checkpoints while the first database write is in flight", async () => {
+        const checkpointWriteStarted = Promise.withResolvers<void>();
+        const releaseCheckpointWrite = Promise.withResolvers<void>();
+        const mockIndexingManager = {
+            loadCheckpoints: vi.fn().mockResolvedValue([]),
+            isEventIndexEmpty: vi.fn().mockResolvedValue(false),
+            addCrawlerCheckpoint: vi.fn().mockImplementation(async () => {
+                checkpointWriteStarted.resolve();
+                await releaseCheckpointWrite.promise;
+            }),
+        } as any as Mocked<BaseEventIndexManager>;
+        mockPlatformPeg({ getEventIndexingManager: () => mockIndexingManager });
+
+        const liveTimelineSet = { id: "live" };
+        const room = {
+            roomId: "!room1:id",
+            getUnfilteredTimelineSet: () => liveTimelineSet,
+            getLiveTimeline: () => ({ getPaginationToken: () => "token1" }),
+        } as any as Room;
+        const mockCrypto = { isEncryptionEnabledInRoom: vi.fn().mockResolvedValue(true) };
+        getMockClientWithEventEmitter({
+            getCrypto: () => mockCrypto as any,
+            ...mockClientMethodsRooms([room]),
+            isRoomEncrypted: vi.fn().mockReturnValue(true),
+        });
+
+        const indexer = new EventIndex();
+        await indexer.init();
+
+        const onTimelineReset = (indexer as any).onTimelineReset as (
+            room: Room,
+            timelineSet: typeof liveTimelineSet,
+        ) => Promise<void>;
+        const firstReset = onTimelineReset(room, liveTimelineSet);
+        await checkpointWriteStarted.promise;
+        await onTimelineReset(room, liveTimelineSet);
+
+        expect(mockIndexingManager.addCrawlerCheckpoint).toHaveBeenCalledOnce();
+
+        releaseCheckpointWrite.resolve();
+        await firstReset;
+    });
+
     it("only seeds a gap-fill on the room's own live timeline reset, not thread/filtered resets", async () => {
         const mockIndexingManager = {
             loadCheckpoints: vi.fn().mockResolvedValue([]),
