@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+echo "Installing system dependencies..."
+sudo apt-get update
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    curl \
+    git \
+    jq \
+    pkg-config \
+    python3
+
+export MISE_YES=1
+if ! command -v mise >/dev/null 2>&1; then
+    echo "Installing mise..."
+    curl -fsSL https://mise.run | sh
+fi
+
+MISE_BIN="$(command -v mise 2>/dev/null || true)"
+if [[ -z "$MISE_BIN" ]]; then
+    MISE_BIN="$HOME/.local/bin/mise"
+fi
+
+echo "Installing Node.js 24 and pnpm 11.5.2..."
+"$MISE_BIN" install node@24 pnpm@11.5.2
+"$MISE_BIN" use --global node@24 pnpm@11.5.2
+
+echo "Installing workspace dependencies..."
+"$MISE_BIN" exec node@24 pnpm@11.5.2 -- pnpm install --frozen-lockfile
+
+echo "Installing Chromium for browser-backed unit tests..."
+"$MISE_BIN" exec node@24 pnpm@11.5.2 -- pnpm exec playwright install --with-deps chromium
+
+if [[ ! -f apps/web/config.json ]]; then
+    echo "Creating the development web configuration..."
+    cp -- apps/web/config.sample.json apps/web/config.json
+fi
+
+echo "Orb setup complete."
