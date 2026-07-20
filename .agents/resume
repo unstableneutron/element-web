@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Element Web has no persistent local services to reconnect after an orb wakes.
+if [[ ! -f apps/web/config.json ]]; then
+    cp -- apps/web/config.sample.json apps/web/config.json
+fi
+
+if [[ ! -d node_modules ]]; then
+    echo "node_modules is missing; rerun .agents/setup to repair this orb." >&2
+    exit 1
+fi
+
+echo "Orb is ready; no services need restarting."
