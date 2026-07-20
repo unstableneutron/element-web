@@ -17,6 +17,20 @@ on:
                 options:
                     - nightly
                     - release
+                    - elementplus
+            sign:
+                description: Sign and notarize the ElementPlus macOS build
+                required: true
+                type: boolean
+                default: false
+            release_tag:
+                description: Existing GitHub Release tag to receive ElementPlus macOS assets
+                required: false
+                type: string
+            commit:
+                description: Exact commit to build in ElementPlus mode
+                required: false
+                type: string
             macos:
                 description: Build macOS
                 required: true
@@ -37,21 +51,39 @@ on:
                 required: true
                 type: boolean
                 default: true
-run-name: Element ${{ inputs.mode != 'release' && github.event_name != 'release' && 'Nightly' || 'Desktop' }}
+run-name: ${{ inputs.mode == 'elementplus' && 'ElementPlus macOS' || format('Element {0}', inputs.mode != 'release' && github.event_name != 'release' && 'Nightly' || 'Desktop') }}
 concurrency: ${{ github.workflow }}
 env:
     R2_BUCKET: ${{ vars.R2_BUCKET }}
 permissions: {} # Uses ELEMENT_BOT_TOKEN
 jobs:
+    validate:
+        name: Validate build request
+        runs-on: ubuntu-24.04
+        steps:
+            - name: Validate ElementPlus source
+              if: inputs.mode == 'elementplus'
+              run: |
+                  test "$GITHUB_REPOSITORY" = "unstableneutron/element-web"
+                  test "$GITHUB_REF" = "refs/heads/perf/v1.12.24-rc.1"
+                  test -n "$REQUESTED_COMMIT"
+                  test "$GITHUB_SHA" = "$REQUESTED_COMMIT"
+              env:
+                  REQUESTED_COMMIT: ${{ inputs.commit }}
+
     prepare:
         uses: ./.github/workflows/build_desktop_prepare.yaml
+        needs: validate
         permissions:
             contents: read
         with:
-            config: element.io/${{ inputs.mode || (github.event_name == 'release' && 'release') || 'nightly' }}
+            repository: ${{ github.repository }}
+            ref: ${{ inputs.mode == 'elementplus' && inputs.commit || '' }}
+            config: ${{ inputs.mode == 'elementplus' && 'element.performance' || format('element.io/{0}', inputs.mode || (github.event_name == 'release' && 'release') || 'nightly') }}
             version: ${{ (inputs.mode != 'release' && github.event_name != 'release') && 'develop' || '' }}
-            nightly: ${{ inputs.mode != 'release' && github.event_name != 'release' }}
+            nightly: ${{ inputs.mode == 'nightly' || (inputs.mode == '' && github.event_name != 'release') }}
             deploy: ${{ inputs.deploy || (github.event_name != 'workflow_dispatch' && github.event.release.prerelease != true) }}
+            build-webapp: ${{ inputs.mode == 'elementplus' }}
         secrets:
             CF_R2_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
             CF_R2_TOKEN: ${{ secrets.CF_R2_TOKEN }}
@@ -59,6 +91,7 @@ jobs:
     trigger-pro-pipeline:
         name: Trigger Pro pipeline
         needs: prepare
+        if: inputs.mode != 'elementplus'
         runs-on: ubuntu-24.04
         steps:
             - uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4
@@ -92,9 +125,35 @@ jobs:
         uses: ./.github/workflows/build_desktop_macos.yaml
         secrets: inherit # zizmor: ignore[secrets-inherit]
         with:
-            sign: true
+            repository: ${{ github.repository }}
+            ref: ${{ inputs.mode == 'elementplus' && inputs.commit || '' }}
+            sign: ${{ inputs.mode != 'elementplus' && 'true' || (inputs.sign && 'true' || '') }}
             base-url: https://packages.element.io/${{ needs.prepare.outputs.packages-dir }}
             version: ${{ needs.prepare.outputs.nightly-version }}
+            artifact-prefix: ${{ inputs.mode == 'elementplus' && 'elementplus-' || '' }}
+
+    release-elementplus:
+        name: Attach ElementPlus macOS assets to GitHub Release
+        needs: macos
+        if: inputs.mode == 'elementplus' && inputs.release_tag != ''
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: write
+        steps:
+            - name: Download macOS artifacts
+              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+              with:
+                  name: elementplus-macos
+                  path: dist
+
+            - name: Upload assets to existing release
+              run: |
+                  gh release view "$RELEASE_TAG" >/dev/null
+                  gh release upload "$RELEASE_TAG" dist/*.dmg dist/*-mac.zip --clobber
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+                  RELEASE_TAG: ${{ inputs.release_tag }}
 
     linux:
         if: github.event_name != 'workflow_dispatch' || inputs.linux
@@ -118,7 +177,7 @@ jobs:
             - windows
         runs-on: ubuntu-24.04
         name: ${{ needs.prepare.outputs.deploy == 'true' && 'Deploy' || 'Deploy (dry-run)' }}
-        if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+        if: inputs.mode != 'elementplus' && always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
         environment: ${{ needs.prepare.outputs.deploy == 'true' && 'packages.element.io' || '' }}
         steps:
             - name: Download artifacts

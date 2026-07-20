@@ -13,6 +13,11 @@ on:
             APPLE_CSC_LINK:
                 required: false
         inputs:
+            repository:
+                type: string
+                required: false
+                default: element-hq/element-web
+                description: "The repository to checkout"
             ref:
                 type: string
                 required: false
@@ -79,7 +84,7 @@ jobs:
 
             - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
-                  repository: element-hq/element-web
+                  repository: ${{ inputs.repository }}
                   ref: ${{ inputs.ref }}
                   persist-credentials: false
 
@@ -220,6 +225,8 @@ jobs:
         if: inputs.test && contains(inputs.targets, 'dmg')
         uses: ./.github/workflows/build_desktop_test.yaml
         with:
+            repository: ${{ inputs.repository }}
+            ref: ${{ inputs.ref }}
             project: macos
             artifact: ${{ inputs.artifact-prefix }}macos
             runs-on: macos-14

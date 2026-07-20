@@ -2,6 +2,15 @@
 on:
     workflow_call:
         inputs:
+            repository:
+                type: string
+                required: false
+                default: element-hq/element-web
+                description: "The repository to checkout"
+            ref:
+                type: string
+                required: false
+                description: "The git ref to checkout, defaults to the default branch"
             runs-on:
                 type: string
                 required: true
@@ -38,7 +47,8 @@ jobs:
         steps:
             - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
-                  repository: element-hq/element-web
+                  repository: ${{ inputs.repository }}
+                  ref: ${{ inputs.ref }}
                   persist-credentials: false
 
             - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
