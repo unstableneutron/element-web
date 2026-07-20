@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+#MISE description="Build ElementPlus for macOS and optionally attach it to an existing GitHub Release"
+
+set -euo pipefail
+
+readonly expected_branch="perf/v1.12.24-rc.1"
+readonly repository="unstableneutron/element-web"
+branch="$(git branch --show-current)"
+if [[ "$branch" != "$expected_branch" ]]; then
+    echo "This release task must run from $expected_branch (currently $branch)." >&2
+    exit 1
+fi
+
+if [[ -n "$(git status --porcelain)" ]]; then
+    echo "Commit local changes before dispatching a release build." >&2
+    exit 1
+fi
+
+git fetch --quiet origin "$branch"
+if [[ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/$branch")" ]]; then
+    echo "The local and origin/$branch commits must match before dispatching a release build." >&2
+    exit 1
+fi
+
+release_tag="${1:-${RELEASE_TAG:-}}"
+sign="${SIGN:-false}"
+if [[ "$sign" != "true" && "$sign" != "false" ]]; then
+    echo "SIGN must be either true or false." >&2
+    exit 1
+fi
+
+if ! gh workflow view build_desktop_and_deploy.yaml --repo "$repository" >/dev/null 2>&1; then
+    echo "GitHub Actions has no indexed desktop workflow for $repository." >&2
+    echo "Enable GitHub Actions for the fork, then rerun this task." >&2
+    exit 1
+fi
+
+args=(
+    workflow run build_desktop_and_deploy.yaml
+    --repo "$repository"
+    --ref "$branch"
+    --field mode=elementplus
+    --field macos=true
+    --field windows=false
+    --field linux=false
+    --field deploy=false
+    --field "sign=$sign"
+    --field "commit=$(git rev-parse HEAD)"
+)
+
+if [[ -n "$release_tag" ]]; then
+    gh release view "$release_tag" --repo "$repository" >/dev/null
+    args+=(--field "release_tag=$release_tag")
+fi
+
+gh "${args[@]}"
+
+echo "Dispatched the ElementPlus macOS build from $branch."
+echo "Follow it with: gh run watch --repo $repository"
