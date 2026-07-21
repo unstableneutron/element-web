@@ -1,0 +1,12 @@
+name: Diagnose reusable workflow
+
+on:
+    workflow_call:
+
+permissions: {}
+
+jobs:
+    diagnose:
+        runs-on: ubuntu-24.04
+        steps:
+            - run: echo "Local reusable workflows can start"
