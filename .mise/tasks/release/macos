@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-readonly expected_branch="perf/v1.12.24-rc.1"
+readonly expected_branch="custom/elementplus"
 readonly repository="unstableneutron/element-web"
 branch="$(git branch --show-current)"
 if [[ "$branch" != "$expected_branch" ]]; then
@@ -29,23 +29,17 @@ if [[ "$sign" != "true" && "$sign" != "false" ]]; then
     exit 1
 fi
 
-if ! gh workflow view build_desktop_and_deploy.yaml --repo "$repository" >/dev/null 2>&1; then
+if ! gh workflow view elementplus-macos.yml --repo "$repository" >/dev/null 2>&1; then
     echo "GitHub Actions has no indexed desktop workflow for $repository." >&2
     echo "Enable GitHub Actions for the fork, then rerun this task." >&2
     exit 1
 fi
 
 args=(
-    workflow run build_desktop_and_deploy.yaml
+    workflow run elementplus-macos.yml
     --repo "$repository"
     --ref "$branch"
-    --field mode=elementplus
-    --field macos=true
-    --field windows=false
-    --field linux=false
-    --field deploy=false
     --field "sign=$sign"
-    --field "commit=$(git rev-parse HEAD)"
 )
 
 if [[ -n "$release_tag" ]]; then
