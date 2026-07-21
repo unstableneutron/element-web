@@ -1,0 +1,14 @@
+name: Diagnose Actions
+
+on:
+    push:
+        branches:
+            - custom/elementplus
+
+permissions: {}
+
+jobs:
+    diagnose:
+        runs-on: ubuntu-24.04
+        steps:
+            - run: echo "GitHub Actions can start jobs"
