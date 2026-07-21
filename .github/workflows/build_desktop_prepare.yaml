@@ -73,7 +73,9 @@ jobs:
                   repository: ${{ inputs.repository }}
                   ref: ${{ inputs.ref }}
 
-            - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+            - name: Install pnpm
+              run: npm install --global pnpm@11.5.2
+
             - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
               with:
                   node-version-file: apps/desktop/.node-version
@@ -176,30 +178,6 @@ jobs:
               working-directory: apps/desktop
               run: |
                   echo "version=$(cat package.json | jq -r .version)" >> $GITHUB_OUTPUT
-
-            - name: "[Release] Fetch release"
-              id: release
-              if: ${{ !inputs.nightly && inputs.version != 'develop' }}
-              uses: cardinalby/git-get-release-action@2ab178299eecb253f820dcf2cce11f62be1178f7 # 1.2.6
-              env:
-                  GITHUB_TOKEN: ${{ github.token }}
-              with:
-                  tag: v${{ steps.package.outputs.version }}
-
-            - name: "[Release] Write changelog"
-              if: ${{ !inputs.nightly && inputs.version != 'develop' }}
-              working-directory: apps/desktop
-              run: |
-                  TIME=$(date -d "$PUBLISHED_AT" -R)
-                  echo "element-desktop ($VERSION) default; urgency=medium" >> changelog.Debian
-                  echo "$BODY" | sed 's/^##/\n  */g;s/^\*/  */g' | perl -pe 's/\[.+?]\((.+?)\)/\1/g' >> changelog.Debian
-                  echo "" >> changelog.Debian
-                  echo " -- $ACTOR <support@element.io>  $TIME" >> changelog.Debian
-              env:
-                  ACTOR: ${{ github.actor }}
-                  VERSION: v${{ steps.package.outputs.version }}
-                  BODY: ${{ steps.release.outputs.body }}
-                  PUBLISHED_AT: ${{ steps.release.outputs.published_at }}
 
             - name: "[Nightly] Write summary"
               if: inputs.nightly
