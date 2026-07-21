@@ -1,0 +1,80 @@
+name: ElementPlus macOS
+
+on:
+    push:
+        branches:
+            - custom/elementplus
+    workflow_dispatch:
+        inputs:
+            sign:
+                description: Sign and notarize using the Desktop Apple environment
+                required: true
+                type: boolean
+                default: false
+            release_tag:
+                description: Existing GitHub Release tag to receive the DMG and ZIP
+                required: false
+                type: string
+
+run-name: ElementPlus macOS ${{ inputs.release_tag || github.sha }}
+concurrency:
+    group: elementplus-macos-${{ github.ref }}
+    cancel-in-progress: false
+permissions: {}
+
+jobs:
+    validate:
+        name: Validate source
+        runs-on: ubuntu-24.04
+        steps:
+            - name: Require the ElementPlus branch
+              run: |
+                  test "$GITHUB_REPOSITORY" = "unstableneutron/element-web"
+                  test "$GITHUB_REF" = "refs/heads/custom/elementplus"
+
+    prepare:
+        name: Prepare ElementPlus desktop
+        needs: validate
+        uses: ./.github/workflows/build_desktop_prepare.yaml
+        permissions:
+            contents: read
+        with:
+            repository: ${{ github.repository }}
+            ref: ${{ github.sha }}
+            config: element.performance
+            version: develop
+            build-webapp: true
+
+    macos:
+        name: Build and test ElementPlus
+        needs: prepare
+        uses: ./.github/workflows/build_desktop_macos.yaml
+        secrets: inherit # zizmor: ignore[secrets-inherit]
+        with:
+            repository: ${{ github.repository }}
+            ref: ${{ github.sha }}
+            sign: ${{ inputs.sign && 'true' || '' }}
+            artifact-prefix: elementplus-
+
+    release:
+        name: Attach assets to GitHub Release
+        needs: macos
+        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: write
+        steps:
+            - name: Download macOS artifacts
+              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+              with:
+                  name: elementplus-macos
+                  path: dist
+
+            - name: Upload assets to existing release
+              run: |
+                  gh release view "$RELEASE_TAG" >/dev/null
+                  gh release upload "$RELEASE_TAG" dist/*.dmg dist/*-mac.zip --clobber
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+                  RELEASE_TAG: ${{ inputs.release_tag }}
