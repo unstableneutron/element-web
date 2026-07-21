@@ -12,3 +12,15 @@ jobs:
         runs-on: ubuntu-24.04
         steps:
             - run: echo "GitHub Actions can start jobs"
+
+    validate-prepare:
+        if: ${{ false }}
+        uses: ./.github/workflows/build_desktop_prepare.yaml
+        permissions:
+            contents: read
+        with:
+            repository: ${{ github.repository }}
+            ref: ${{ github.sha }}
+            config: element.performance
+            version: develop
+            build-webapp: true
