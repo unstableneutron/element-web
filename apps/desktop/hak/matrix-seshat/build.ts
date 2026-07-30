@@ -8,14 +8,17 @@ Please see LICENSE files in the repository root for full details.
 
 import fsProm from "node:fs/promises";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 import type HakEnv from "../../scripts/hak/hakEnv.ts";
 import type { DependencyInfo } from "../../scripts/hak/dep.ts";
 
 const SESHAT_REPOSITORY = "https://github.com/unstableneutron/seshat.git";
-const SESHAT_REVISION = "ff658479958d75f2331970e9ea548aad516bf59a";
+const SESHAT_REVISION = "e39ac83eeacf27157b1cef4d3ca0cd7649c8f0b7";
 const PATCH_START = "# BEGIN ELEMENTPLUS SESHAT PATCH";
 const PATCH_END = "# END ELEMENTPLUS SESHAT PATCH";
+const execFileAsync = promisify(execFile);
 
 function seshatPatch(): string {
     return [
@@ -50,6 +53,20 @@ async function pinSeshatSource(moduleInfo: DependencyInfo): Promise<void> {
     }
 }
 
+async function verifySeshatSource(moduleInfo: DependencyInfo, env: NodeJS.ProcessEnv): Promise<void> {
+    const { stdout } = await execFileAsync("cargo", ["metadata", "--format-version", "1"], {
+        cwd: moduleInfo.moduleBuildDir,
+        env,
+        maxBuffer: 10 * 1024 * 1024,
+    });
+    const metadata = JSON.parse(stdout) as { packages: Array<{ name: string; source: string | null }> };
+    const source = metadata.packages.find(({ name }) => name === "seshat")?.source;
+
+    if (!source?.startsWith(`git+${SESHAT_REPOSITORY}`) || !source.endsWith(`#${SESHAT_REVISION}`)) {
+        throw new Error(`Cargo selected an unexpected Seshat source: ${source ?? "not found"}`);
+    }
+}
+
 export default async function (hakEnv: HakEnv, moduleInfo: DependencyInfo): Promise<void> {
     // Hak's fetch command does not dispatch module-specific fetch hooks, so pin
     // the Rust crate here immediately before Cargo builds the native wrapper.
@@ -80,6 +97,8 @@ export default async function (hakEnv: HakEnv, moduleInfo: DependencyInfo): Prom
         env,
         shell: true,
     });
+
+    await verifySeshatSource(moduleInfo, env);
 
     const buildTarget = hakEnv.wantsStaticSqlCipher() ? "build-bundled" : "build";
 
