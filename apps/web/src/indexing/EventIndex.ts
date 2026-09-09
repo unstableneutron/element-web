@@ -1354,10 +1354,7 @@ export default class EventIndex extends EventEmitter {
     }
 
     public crawlingRooms(): {
-        /**
-         * The rooms with an outstanding crawler checkpoint: the one being crawled right now, and
-         * those still queued behind it.
-         */
+        /** The rooms that we are currently crawling. */
         crawlingRooms: Set<string>;
 
         /** All the encrypted rooms known by the MatrixClient. */
@@ -1366,7 +1363,7 @@ export default class EventIndex extends EventEmitter {
         const totalRooms = new Set<string>();
         const crawlingRooms = new Set<string>();
 
-        this.crawlerCheckpoints.forEach((checkpoint, index) => {
+        this.crawlerCheckpoints.forEach((checkpoint) => {
             crawlingRooms.add(checkpoint.roomId);
         });
 
