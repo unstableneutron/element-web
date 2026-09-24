@@ -27,6 +27,7 @@ describe("<ManageEventIndexDialog />", () => {
 
     const mockEventIndex = {
         getStats: vi.fn().mockResolvedValue({ size: 1234, eventCount: 12, roomCount: 2 }),
+        getIndexingStatus: vi.fn().mockReturnValue({ indexed: 1, indexing: 1, errored: 0 }),
         crawlingRooms: vi.fn().mockReturnValue({
             crawlingRooms: new Set(["!room1:example.org"]),
             totalRooms: new Set(["!room1:example.org", "!room2:example.org"]),
