@@ -157,6 +157,9 @@ jobs:
                   VARIANT_PATH: variant.json
                   TARGETS: ${{ inputs.targets }}
 
+            - name: Verify packaged app ships optimized Seshat
+              run: apps/desktop/scripts/verify-elementplus-seshat.sh apps/desktop/dist
+
             - name: Generate releases.json
               if: inputs.base-url
               working-directory: apps/desktop
