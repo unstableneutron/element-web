@@ -50,6 +50,8 @@ jobs:
         needs: prepare
         uses: ./.github/workflows/build_desktop_macos.yaml
         secrets: inherit # zizmor: ignore[secrets-inherit]
+        permissions:
+            contents: read
         with:
             repository: ${{ github.repository }}
             ref: ${{ github.sha }}
